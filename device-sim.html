@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Device Operation Simulation: การทำงานของอุปกรณ์ IoT</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --leak:#f97316; --ok:#22c55e; --line:#334155; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:20px 24px 8px; }
+  h1 { margin:0 0 4px; font-size:22px; }
+  header p { margin:0; color:var(--muted); font-size:14px; }
+  nav { padding:0 24px 12px; font-size:13px; }
+  nav a { color:var(--accent); margin-right:14px; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; padding:0 24px 12px; }
+  .tabs button { padding:8px 14px; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:8px; cursor:pointer; font-size:14px; }
+  .tabs button[aria-pressed="true"] { background:var(--accent); color:#0f172a; border-color:var(--accent); font-weight:600; }
+  main { display:grid; grid-template-columns: 320px 1fr; gap:16px; padding:0 24px 24px; }
+  @media (max-width: 860px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border-radius:12px; padding:16px; }
+  h2 { font-size:15px; margin:0 0 10px; color:var(--muted); font-weight:600; }
+  .desc { font-size:13px; color:var(--muted); line-height:1.55; margin:0 0 12px; }
+  ol.steps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+  ol.steps li { display:grid; grid-template-columns: 26px 1fr auto; gap:8px; align-items:center; padding:8px; border-radius:8px; border:1px solid var(--line); font-size:14px; color:var(--muted); transition: all .2s; }
+  ol.steps li .n { width:26px; height:26px; border-radius:50%; display:grid; place-items:center; background:#334155; color:var(--ink); font-size:12px; font-weight:700; }
+  ol.steps li small { font-family: ui-monospace, monospace; font-size:12px; }
+  ol.steps li.active { border-color:var(--accent); color:var(--ink); background:#0b2a3a; }
+  ol.steps li.active .n { background:var(--accent); color:#0f172a; }
+  ol.steps li.done { color:var(--ink); }
+  ol.steps li.done .n { background:var(--ok); color:#0f172a; }
+  .controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  button.btn { flex:1; padding:10px; border:0; border-radius:8px; background:var(--accent); color:#0f172a; font-weight:600; cursor:pointer; min-width:120px; }
+  button.btn.alt { background:#64748b; color:var(--ink); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  label.check { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:14px; }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  @media (max-width: 600px) { .grid2 { grid-template-columns:1fr; } }
+  .card { background:#0f172a; border-radius:10px; padding:12px; }
+  .card small { display:block; color:var(--muted); font-size:12px; }
+  .card b { font-size:18px; font-variant-numeric: tabular-nums; }
+  .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-weight:700; font-size:13px; }
+  .badge.leak { background:var(--leak); color:#0f172a; }
+  .badge.ok { background:var(--ok); color:#0f172a; }
+  .badge.idle { background:#334155; color:var(--ink); }
+  .bar { height:10px; background:#334155; border-radius:6px; overflow:hidden; margin-top:6px; }
+  .bar > div { height:100%; background:linear-gradient(90deg,var(--ok),var(--leak)); width:0%; transition:width .3s; }
+  .battery { height:10px; background:#334155; border-radius:6px; overflow:hidden; margin-top:6px; }
+  .battery > div { height:100%; background:var(--ok); width:100%; transition:width .4s; }
+  pre { background:#0b1222; border-radius:8px; padding:10px; font-size:12px; overflow:auto; max-height:260px; margin:0; color:#cbd5e1; white-space:pre-wrap; }
+  .status { font-size:13px; color:var(--muted); margin-bottom:12px; }
+  .note { font-size:12px; color:var(--muted); margin-top:12px; line-height:1.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Device Operation Simulation: การทำงานของอุปกรณ์ทีละขั้น</h1>
+  <p>แสดงลำดับการทำงานของเครื่องแต่ละแบบ ทั้งเครื่อง LeakNode (AI-IoT), วิธีเดิมของช่าง และ DS-300 (ตรวจทุเรียน) เป็นตัวอย่างอุปกรณ์ IoT อีกตัว</p>
+</header>
+<nav>
+  <a href="./iot.html">เครื่องจำลอง AI-IoT (เดิม)</a>
+  <a href="./index.html">ซิมูเลชัน TDOA</a>
+  <a href="./mockup/leaknode-3d.html">โมเดล 3 มิติ LeakNode</a>
+</nav>
+
+<div class="tabs" role="group" aria-label="เลือกอุปกรณ์">
+  <button id="p-leak" aria-pressed="true">LeakNode (AI-IoT)</button>
+  <button id="p-old" aria-pressed="false">วิธีเดิม (ช่างเดินสำรวจ)</button>
+  <button id="p-durian" aria-pressed="false">DS-300 ทุเรียน (ตัวอย่าง)</button>
+</div>
+
+<main>
+  <section class="panel">
+    <h2 id="profTitle">ลำดับการทำงานหนึ่งรอบ</h2>
+    <p class="desc" id="profDesc"></p>
+    <ol class="steps" id="steps"></ol>
+
+    <div class="controls">
+      <button class="btn" id="go">เริ่มรอบการทำงาน</button>
+      <button class="btn alt" id="reset">รีเซ็ต</button>
+    </div>
+    <div id="leakOpts">
+      <label class="check"><input type="checkbox" id="leakOn" checked> มีการรั่วจริงในรอบนี้</label>
+    </div>
+    <p class="note">ความเร็วการจำลอง: 1 วินาทีในโมเดล ≈ 0.6 วินาทีจริง (ตัวเลขเวลาในรายการเป็นเวลาของอุปกรณ์จริงโดยประมาณ)</p>
+  </section>
+
+  <section class="panel">
+    <div class="status" id="status">กำลังเทรนโมเดล AI…</div>
+    <div class="grid2">
+      <div class="card">
+        <small>สถานะปัจจุบัน</small>
+        <div id="state"><span class="badge idle">พัก</span></div>
+      </div>
+      <div class="card">
+        <small>แบตเตอรี่ (จำลอง)</small>
+        <b id="batt">-</b>
+        <div class="battery"><div id="battBar"></div></div>
+      </div>
+      <div class="card" id="cardAi">
+        <small>AI: ความน่าจะเป็นว่ามีการรั่ว</small>
+        <b id="prob">-</b>
+        <div class="bar"><div id="probBar"></div></div>
+      </div>
+      <div class="card">
+        <small>ตำแหน่งรั่วที่ประมาณได้ (TDOA)</small>
+        <b id="xest">-</b>
+      </div>
+    </div>
+
+    <h2 style="margin-top:16px">บันทึกเหตุการณ์ของอุปกรณ์ (telemetry / log)</h2>
+    <pre id="log">-</pre>
+  </section>
+</main>
+
+<script type="module">
+  import { makeRng, simulateWindow } from "./src/signal.js";
+  import { CONFIG, trainDetector, analyzeWindow } from "./src/gateway.js";
+  import { createPair } from "./src/device.js";
+
+  const $ = id => document.getElementById(id);
+  const SPEED = 0.6; // 1 วินาทีในโมเดล ≈ 0.6 วินาทีจริง
+
+  let detector = null;
+  let runs = 0;
+  let timer = null;
+  let profile = "leak";
+  let battery = 100;
+  let lastState = null;
+
+  // ---------- โปรไฟล์ของอุปกรณ์ ----------
+  // ทุกขั้นมี s = ระยะเวลาโดยประมาณ (วินาทีของอุปกรณ์จริง), state = ชื่อสถานะ, text = คำอธิบาย
+  const PROFILES = {
+    leak: {
+      title: "ลำดับการทำงานของ LeakNode หนึ่งรอบ (ตื่นตอนกลางคืน)",
+      desc: "เครื่องหลับเกือบตลอดเวลา ตื่นช่วงตี 2 ถึงตี 4 เพื่อฟังท่อ วิเคราะห์เอง แล้วส่งผลขึ้นคลาวด์ผ่าน LoRaWAN/NB-IoT ขั้นวิเคราะห์และส่งข้อมูลทำจริงในเครื่อง",
+      battery: 0.4,
+      steps: [
+        { s: 2,   st: "ตื่น",         text: "RTC ปลุกเครื่องตอน 02:00 แล้วเปิดบอร์ด ESP32-S3" },
+        { s: 3,   st: "ซิงก์เวลา",     text: "รับเวลาจาก GNSS เพื่อให้เซนเซอร์ A และ B ตรงกันสำหรับ TDOA" },
+        { s: 4,   st: "เก็บสัญญาณ",    text: "อ่านเสียงจากเซนเซอร์ piezo ทั้งสองตัวพร้อมกัน (หน้าต่าง 0.2 วินาที)" },
+        { s: 2,   st: "กรองสัญญาณ",    text: "กรองช่วง 100–1500 Hz และตัดเสียงรบกวนความถี่ต่ำ" },
+        { s: 3,   st: "AI วิเคราะห์",  text: "ดึงฟีเจอร์แล้วให้โมเดลจำแนกว่าเป็นเสียงรั่วหรือเสียงรบกวน", ai: true },
+        { s: 2,   st: "หาตำแหน่ง",     text: "ถ้าแจ้งเตือน คำนวณระยะจาก Δt ด้วย x = (L − c·Δt)/2", loc: true },
+        { s: 3,   st: "ส่งข้อมูล",     text: "ส่ง telemetry (JSON) ผ่าน LoRaWAN ไปยัง gateway", send: true },
+        { s: 1,   st: "หลับ",          text: "ปิดวงจรที่ไม่ใช้ กลับเข้าโหมดประหยัดพลังงาน" }
+      ]
+    },
+    old: {
+      title: "วิธีเดิม: ช่างเดินสำรวจทีละจุด",
+      desc: "ช่างต้องออกไปหน้างาน ตรวจทีละวาล์วด้วยไม้ฟังเสียงและไมค์พื้น ผลขึ้นกับความชำนาญของแต่ละคน ไม่มีบันทึกย้อนหลังอัตโนมัติ",
+      battery: null,
+      steps: [
+        { s: 60,  st: "เดินทาง",        text: "ช่างเดินทางไปยังเขตที่ต้องสำรวจ (มักทำกลางคืนเพื่อลดเสียงรบกวน)" },
+        { s: 30,  st: "เปิดฝาวาล์ว",    text: "เปิดฝาบ่อวาล์วหรือหัวดับเพลิงทีละจุด" },
+        { s: 45,  st: "แตะไม้ฟัง",      text: "แนบไม้ฟังเสียงกับวาล์วแล้วฟังผ่านหูฟัง" },
+        { s: 90,  st: "ขยับไมค์พื้น",   text: "วางไมค์บนถนนแล้วขยับไปเรื่อย ๆ หาจุดที่เสียงดังที่สุด" },
+        { s: 60,  st: "ตัดสินด้วยหู",   text: "ตัดสินว่ารั่วหรือไม่จากประสบการณ์ ไม่มีค่าวัดที่ชัดเจน" },
+        { s: 60,  st: "จดบันทึก",       text: "จดตำแหน่งลงกระดาษหรือบันทึกมือ ไม่มีข้อมูลย้อนหลัง" }
+      ]
+    },
+    durian: {
+      title: "DS-300 ตรวจทุเรียน (อุปกรณ์ IoT ตัวอย่าง)",
+      desc: "ตัวอย่างอุปกรณ์ IoT อีกตัวในโครงการเดียวกัน ใช้ ESP32-S3 + ADS1115 อ่านเซนเซอร์แก๊ส TGS2602/TGS2603 และ BME688 แล้วให้ผลเป็นเกรด ค่าที่แสดงเป็นค่าจำลองเพื่อประกอบการอธิบาย",
+      battery: null,
+      steps: [
+        { s: 10, st: "เปิดเครื่อง",    text: "เปิด ESP32-S3 และรอให้เซนเซอร์แก๊สอุ่นเครื่อง" },
+        { s: 5,  st: "ดูดอากาศ",       text: "ปั๊ม 5V ดูดอากาศจากห้องตรวจเข้าสู่ห้องเซนเซอร์" },
+        { s: 8,  st: "อ่านแก๊ส",       text: "ADS1115 อ่านค่า TGS2602/TGS2603 และ BME688 (อุณหภูมิ/ความชื้น)", gas: true },
+        { s: 4,  st: "คำนวณเกรด",      text: "ประมวลผลค่าแก๊สเป็นเกรดความสุก (ค่าจำลอง)", grade: true },
+        { s: 3,  st: "แสดงผล",         text: "แสดงเกรดบนหน้าจอและส่งผลขึ้นคลาวด์" },
+        { s: 5,  st: "ล้างห้อง",       text: "ปั๊มอากาศสะอาดเข้าเพื่อล้างห้องเซนเซอร์ก่อนรอบถัดไป" }
+      ]
+    }
+  };
+
+  // ---------- การแสดงผล ----------
+  function renderSteps() {
+    const p = PROFILES[profile];
+    $("profTitle").textContent = p.title;
+    $("profDesc").textContent = p.desc;
+    $("steps").innerHTML = p.steps.map((st, i) =>
+      `<li data-i="${i}"><span class="n">${i + 1}</span><div><b>${st.st}</b><br><small style="color:var(--muted)">${st.text}</small></div><small>~${st.s}s</small></li>`
+    ).join("");
+    $("leakOpts").style.display = profile === "leak" ? "block" : "none";
+    $("cardAi").style.display = profile === "leak" ? "block" : "none";
+    $("batt").textContent = profile === "leak" ? battery.toFixed(2) + " %" : "ไม่ใช้แบตเตอรี่";
+    $("battBar").parentElement.parentElement.style.display = profile === "leak" ? "block" : "none";
+  }
+
+  function setState(label, cls = "idle") {
+    $("state").innerHTML = `<span class="badge ${cls}">${label}</span>`;
+  }
+
+  function markStep(i) {
+    document.querySelectorAll("#steps li").forEach((li, j) => {
+      li.classList.toggle("active", j === i);
+      li.classList.toggle("done", j < i);
+    });
+  }
+
+  function clearMarks() {
+    document.querySelectorAll("#steps li").forEach(li => li.classList.remove("active", "done"));
+  }
+
+  function log(obj) {
+    const line = typeof obj === "string" ? obj : JSON.stringify(obj);
+    const el = $("log");
+    el.textContent = (el.textContent === "-" ? "" : el.textContent + "\n") + line;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // ---------- ตัวจำลองรอบการทำงาน ----------
+  function stopTimer() { if (timer) { clearTimeout(timer); timer = null; } }
+
+  function runCycle() {
+    if (!detector && profile === "leak") return;
+    stopTimer();
+    runs += 1;
+    const p = PROFILES[profile];
+    $("go").disabled = true;
+    clearMarks();
+    log(`--- รอบที่ ${runs} · ${p.title} ---`);
+
+    // ผลลัพธ์ของรอบ (คำนวณล่วงหน้าเพื่อใช้แสดงในขั้นที่เหมาะสม)
+    let result = null;
+    if (profile === "leak") {
+      const L = 250;
+      const leak = $("leakOn").checked;
+      const leakX = 60 + Math.round(((runs * 37) % 130));
+      const rng = makeRng(2000 + runs);
+      const w = simulateWindow({ rng, fs: CONFIG.fs, L, leakX, c: CONFIG.c, noise: 0.4, leak, windowS: CONFIG.windowS });
+      const r = analyzeWindow(detector.model, w, { L });
+      const [nA, nB] = createPair(L);
+      const tA = nA.telemetry(w.sA, { fs: CONFIG.fs });
+      const tB = nB.telemetry(w.sB, { fs: CONFIG.fs });
+      result = { L, leak, leakX, r, tA, tB };
+    }
+
+    let i = 0;
+    const next = () => {
+      if (i >= p.steps.length) return finish(result);
+      const st = p.steps[i];
+      markStep(i);
+      setState(st.st, st.ai || st.loc || st.send ? "ok" : "idle");
+
+      if (profile === "leak") {
+        if (st.ai) {
+          $("prob").textContent = (result.r.leakProb * 100).toFixed(1) + " %";
+          $("probBar").style.width = (result.r.leakProb * 100).toFixed(1) + "%";
+          log(`[AI] ความน่าจะเป็นรั่ว ${(result.r.leakProb * 100).toFixed(1)}% → ${result.r.alarm ? "ALARM" : "ปกติ"}`);
+        }
+        if (st.loc) {
+          $("xest").textContent = result.r.xEst === null ? "ไม่มีการประมาณ" : result.r.xEst.toFixed(1) + " m";
+          log(`[TDOA] lag = ${result.r.lag} ตัวอย่าง → x̂ = ${result.r.xEst === null ? "-" : result.r.xEst.toFixed(2) + " m"}`);
+        }
+        if (st.send) log(JSON.stringify({ deviceId: "NODE-A", telemetry: result.tA, nodeB: result.tB.seq }));
+      }
+
+      if (profile === "durian") {
+        if (st.gas) {
+          const v = [1.2 + Math.random() * 0.8, 0.9 + Math.random() * 0.6, 55 + Math.random() * 10];
+          log(`[ADS1115] TGS2602=${v[0].toFixed(2)} V  TGS2603=${v[1].toFixed(2)} V  BME688 RH=${v[2].toFixed(1)}% (ค่าจำลอง)`);
+        }
+        if (st.grade) log(`[FlyHash] ผลประมวลผลเกรด: ระดับ ${["A", "B", "C"][runs % 3]} (ค่าจำลอง ไม่ใช่ผลวิจัยจริง)`);
+      }
+
+      if (profile === "old") log(`[ช่าง] ${st.st}: ${st.text}`);
+
+      i += 1;
+      timer = setTimeout(next, st.s * 1000 * SPEED / 5);
+    };
+    next();
+  }
+
+  function finish(result) {
+    stopTimer();
+    markStep(PROFILES[profile].steps.length);
+    $("go").disabled = false;
+    if (profile === "leak") {
+      battery = Math.max(0, battery - PROFILES.leak.battery);
+      $("batt").textContent = battery.toFixed(2) + " %";
+      $("battBar").style.width = battery + "%";
+      setState(result.r.alarm ? "ALARM ส่งแจ้งเตือนแล้ว" : "ปกติ · ส่งรายงานแล้ว", result.r.alarm ? "leak" : "ok");
+      $("status").textContent = `รอบ ${runs} เสร็จ · ผลจริงของรอบ: ${result.leak ? `มีการรั่วที่ ${result.leakX} m` : "ไม่มีการรั่ว"}`;
+      if (!result.leak && result.r.alarm) log("[ผล] แจ้งเตือนผิด (false alarm) ในรอบนี้");
+    } else if (profile === "old") {
+      setState("จบการสำรวจ", "idle");
+      $("status").textContent = "วิธีเดิมต้องใช้เวลาหลายสิบนาทีต่อเขตและผลขึ้นกับคนทำ";
+    } else {
+      setState("แสดงเกรดแล้ว", "ok");
+      $("status").textContent = "DS-300 ค่าทั้งหมดในหน้านี้เป็นค่าจำลองเพื่ออธิบายการทำงาน";
+    }
+  }
+
+  // ---------- ควบคุม ----------
+  function setProfile(p) {
+    stopTimer();
+    profile = p;
+    for (const k of ["leak", "old", "durian"]) $("p-" + k).setAttribute("aria-pressed", k === p);
+    $("log").textContent = "-";
+    $("go").disabled = false;
+    $("prob").textContent = "-"; $("probBar").style.width = "0%"; $("xest").textContent = "-";
+    setState("พัก");
+    renderSteps();
+  }
+
+  $("p-leak").onclick = () => setProfile("leak");
+  $("p-old").onclick = () => setProfile("old");
+  $("p-durian").onclick = () => setProfile("durian");
+  $("go").onclick = runCycle;
+  $("reset").onclick = () => {
+    stopTimer(); battery = 100; runs = 0;
+    $("log").textContent = "-"; $("go").disabled = false; clearMarks(); setState("พัก");
+    $("batt").textContent = "100.00 %"; $("battBar").style.width = "100%";
+    $("prob").textContent = "-"; $("probBar").style.width = "0%"; $("xest").textContent = "-";
+  };
+
+  renderSteps();
+  $("go").disabled = true;
+  setTimeout(() => {
+    const t0 = performance.now();
+    detector = trainDetector();
+    $("status").textContent = `โมเดลพร้อม (ความแม่นยำบนชุดทดสอบจำลอง ${(detector.testAccuracy * 100).toFixed(1)}%) · เทรนใน ${((performance.now() - t0) / 1000).toFixed(1)} s`;
+    $("go").disabled = false;
+  }, 50);
+</script>
+</body>
+</html>

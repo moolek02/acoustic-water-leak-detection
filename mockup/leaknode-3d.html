@@ -1,0 +1,328 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>LeakNode 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&family=Chakra+Petch:wght@600;700&display=swap">
+<style>
+/* Layout: field-instrument console — 3D bench on the left, spec sheet on the right, stacks on phones */
+:root{
+  --bg:#e9ecee; --panel:#f6f7f8; --ink:#1d2730; --muted:#5d6b77; --line:#c9d0d6;
+  --accent:#e2621b; --cool:#1f6f8b; --stage:#dde2e6;
+  --f-display:"Chakra Petch","IBM Plex Sans Thai",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans Thai",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141a1f; --panel:#1b232a; --ink:#e4e9ed; --muted:#93a1ad; --line:#2d3842;
+  --accent:#f07a35; --cool:#4fa8c7; --stage:#10161a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141a1f; --panel:#1b232a; --ink:#e4e9ed; --muted:#93a1ad; --line:#2d3842;
+  --accent:#f07a35; --cool:#4fa8c7; --stage:#10161a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 32px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-display);font-size:clamp(24px,4vw,34px);line-height:1.1;margin:0;text-wrap:balance}
+h1 span{color:var(--accent)}
+.sub{color:var(--muted);margin:4px 0 0;max-width:62ch}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button,.tool{font-family:var(--f-body);font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  padding:8px 14px;border-radius:6px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px}
+@media (max-width:900px){.main{grid-template-columns:1fr}}
+.stage{position:relative;background:var(--stage);border:1px solid var(--line);border-radius:8px;overflow:hidden;min-height:440px;aspect-ratio:4/3;max-width:100%}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+.tags{position:absolute;inset:0;pointer-events:none}
+.tag{position:absolute;transform:translate(-50%,-50%);font-family:var(--f-mono);font-size:11px;font-weight:600;
+  width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#fff;box-shadow:0 0 0 2px var(--stage)}
+.tag[data-k="old"]{background:var(--cool)}
+.hud{position:absolute;left:12px;bottom:12px;right:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.hint{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.scale{font-family:var(--f-mono);font-size:11px;color:var(--muted);position:absolute;top:12px;left:12px}
+aside{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+aside h2{font-family:var(--f-display);font-size:19px;margin:0}
+.kicker{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+ol.parts{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+ol.parts li{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start}
+ol.parts b{display:block;font-weight:600}
+ol.parts small{color:var(--muted);font-size:13px}
+.n{font-family:var(--f-mono);font-size:11px;font-weight:600;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;background:var(--accent)}
+.old .n{background:var(--cool)}
+.cmp{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td:first-child{color:var(--muted);white-space:nowrap}
+td.new{border-left:3px solid var(--accent)} td.oldc{border-left:3px solid var(--cool)}
+tr:last-child td{border-bottom:0}
+.note{font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="kicker">Acoustic Water Leak Detection · Mockup 3D</div>
+      <h1>เครื่องใหม่ <span>LeakNode</span> กับเครื่องฟังเสียงแบบเก่า</h1>
+      <p class="sub">ลากเพื่อหมุน เลื่อนล้อเมาส์หรือบีบนิ้วเพื่อซูม กด "ถอดชิ้นส่วน" เพื่อดูภายในเครื่องใหม่</p>
+    </div>
+    <div class="tabs" role="group" aria-label="เลือกเครื่อง">
+      <button id="t-new" aria-pressed="true">เครื่องใหม่ (AI-IoT)</button>
+      <button id="t-old" aria-pressed="false">เครื่องเก่า</button>
+      <button id="t-both" aria-pressed="false">วางเทียบกัน</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="stage">
+      <canvas id="c" aria-label="โมเดล 3 มิติของเครื่องตรวจจับท่อรั่ว"></canvas>
+      <div class="tags" id="tags"></div>
+      <div class="scale" id="scale">มาตราส่วน: ท่อ Ø150 มม.</div>
+      <div class="hud">
+        <span class="hint">ลาก = หมุน · ล้อ/บีบ = ซูม</span>
+        <span style="display:flex;gap:6px">
+          <button class="tool" id="explode">ถอดชิ้นส่วน</button>
+          <button class="tool" id="spin">หยุดหมุน</button>
+        </span>
+      </div>
+    </div>
+
+    <aside id="side"></aside>
+  </div>
+
+  <div class="cmp">
+    <table>
+      <thead><tr><th>หัวข้อ</th><th>เครื่องใหม่ LeakNode (AI-IoT)</th><th>เครื่องเก่า (ไม้ฟัง + ไมค์พื้น)</th></tr></thead>
+      <tbody>
+        <tr><td>วิธีทำงาน</td><td class="new">ติดถาวรบนวาล์ว/หัวดับเพลิง ฟังเองทุกคืน 02:00–04:00</td><td class="oldc">ช่างเดินสำรวจ เอาไม้แตะวาล์วหรือวางไมค์บนถนนทีละจุด</td></tr>
+        <tr><td>ใครเป็นคนตัดสิน</td><td class="new">AI แยกเสียงรั่วกับเสียงรบกวน แล้วให้คะแนนความมั่นใจ</td><td class="oldc">หูและประสบการณ์ของช่าง</td></tr>
+        <tr><td>หาตำแหน่ง</td><td class="new">คำนวณจากเซนเซอร์ 2 ตัว d = (D − v·Δt)/2 ได้ระยะเป็นเมตร</td><td class="oldc">เดินหาจุดที่เสียงดังที่สุด</td></tr>
+        <tr><td>เวลาทำงาน</td><td class="new">ต่อเนื่อง 24/7 ส่งผลผ่าน LoRaWAN/NB-IoT</td><td class="oldc">เฉพาะตอนที่มีคนออกสำรวจ ส่วนใหญ่ทำกลางคืนเพราะเสียงรบกวนน้อย</td></tr>
+        <tr><td>ข้อมูลย้อนหลัง</td><td class="new">เก็บทุกคืน เห็นแนวโน้มว่ารั่วมากขึ้นหรือไม่</td><td class="oldc">ไม่มี ขึ้นกับบันทึกของช่าง</td></tr>
+        <tr><td>จุดอ่อน</td><td class="new">ต้นทุนต่อจุดสูงกว่า ต้องดูแลแบตเตอรี่และสัญญาณ</td><td class="oldc">ช้า ใช้คนมาก ผลต่างกันตามความชำนาญ</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">ขนาดและสเปกในหน้านี้เป็นแบบจำลองเพื่อนำเสนอแนวคิด ไม่ใช่สเปกของผลิตภัณฑ์จริง</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38,1,0.1,100);
+camera.position.set(5.2,3.4,6.2);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.target.set(0,1.1,0);
+controls.minDistance = 3; controls.maxDistance = 16; controls.autoRotate = true; controls.autoRotateSpeed = 0.8;
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x445566,0.75));
+const sun = new THREE.DirectionalLight(0xffffff,0.85);
+sun.position.set(4,8,5); sun.castShadow = true; sun.shadow.mapSize.set(1024,1024);
+Object.assign(sun.shadow.camera,{left:-6,right:6,top:6,bottom:-6}); scene.add(sun);
+
+const M = (c,o={}) => new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.55,metalness:.15},o));
+const mat = {
+  orange:M(0xe2621b,{roughness:.45}), dark:M(0x2a3238,{roughness:.6}), steel:M(0x9aa5ad,{metalness:.8,roughness:.3}),
+  pipe:M(0x3d6b85,{roughness:.7}), iron:M(0x56606a,{metalness:.6,roughness:.5}), pcb:M(0x1f7a4a),
+  chip:M(0x111111), batt:M(0x2f6fb0), gold:M(0xc9a243,{metalness:.9,roughness:.25}),
+  rubber:M(0x1a1a1a,{roughness:.9}), cream:M(0xd9d2c3), yellow:M(0xe8b630), cool:M(0x1f6f8b,{roughness:.45}),
+  ground:M(0x8b8478,{roughness:1}), glass:M(0xbfe3f0,{transparent:true,opacity:.35,roughness:.1})
+};
+const mesh=(g,m,p=[0,0,0],r)=>{const o=new THREE.Mesh(g,m);o.position.set(...p);if(r)o.rotation.set(...r);o.castShadow=o.receiveShadow=true;return o};
+const cyl=(rt,rb,h,s=40)=>new THREE.CylinderGeometry(rt,rb,h,s);
+
+/* ---------- ground + pipe (shared) ---------- */
+function groundAndPipe(len){
+  const g = new THREE.Group();
+  const slab = mesh(new THREE.BoxGeometry(len,0.12,3.2),mat.ground,[0,-0.06,0]); slab.material = mat.ground.clone(); slab.material.transparent=true; slab.material.opacity=.35;
+  g.add(slab);
+  g.add(mesh(cyl(.38,.38,len),mat.pipe,[0,-0.65,0],[0,0,Math.PI/2]));
+  return g;
+}
+
+/* ---------- NEW DEVICE: LeakNode ---------- */
+const NEW = new THREE.Group();
+const parts = []; // {obj, base, exp}
+function part(obj,y,ey){obj.position.y=y;parts.push({obj,base:y,exp:ey});NEW.add(obj);return obj}
+(function(){
+  NEW.add(groundAndPipe(6));
+  // valve riser (fire hydrant / valve stem) from pipe up
+  NEW.add(mesh(cyl(.22,.22,.75),mat.iron,[0,-.25,0]));
+  NEW.add(mesh(cyl(.42,.42,.12),mat.iron,[0,.14,0]));
+  for(let i=0;i<6;i++){const a=i/6*Math.PI*2;NEW.add(mesh(cyl(.035,.035,.08,10),mat.steel,[Math.cos(a)*.34,.23,Math.sin(a)*.34]))}
+  // 1 magnetic base with piezo
+  const base=new THREE.Group(); base.add(mesh(cyl(.36,.4,.16),mat.dark)); base.add(mesh(cyl(.12,.12,.06),mat.gold,[0,-.09,0]));
+  part(base,.3,.15);
+  // 2 sensor PCB + ADC
+  const pcb=new THREE.Group(); pcb.add(mesh(cyl(.32,.32,.04),mat.pcb));
+  pcb.add(mesh(new THREE.BoxGeometry(.16,.04,.16),mat.chip,[0,.04,0]));
+  pcb.add(mesh(new THREE.BoxGeometry(.08,.03,.1),mat.chip,[.18,.035,.05]));
+  pcb.add(mesh(new THREE.BoxGeometry(.06,.03,.06),mat.gold,[-.16,.035,-.08]));
+  part(pcb,.42,.75);
+  // 3 battery pack (2 cells)
+  const bat=new THREE.Group(); bat.add(mesh(cyl(.13,.13,.7),mat.batt,[-.14,0,0])); bat.add(mesh(cyl(.13,.13,.7),mat.batt,[.14,0,0]));
+  bat.add(mesh(cyl(.05,.05,.04),mat.steel,[-.14,.37,0])); bat.add(mesh(cyl(.05,.05,.04),mat.steel,[.14,.37,0]));
+  part(bat,.85,1.5);
+  // 4 main housing (orange shell)
+  const shell=new THREE.Group(); const sm=mat.orange; shell.add(mesh(cyl(.38,.38,1.1,48,1,true),sm));
+  const sh=shell.children[0]; sh.material=sm.clone(); sh.material.side=THREE.DoubleSide;
+  for(const y of [-.45,0,.45]) shell.add(mesh(new THREE.TorusGeometry(.385,.018,8,48),mat.dark,[0,y,0],[Math.PI/2,0,0]));
+  part(shell,.85,.85);
+  // 5 GNSS + LoRa module PCB (time sync)
+  const rf=new THREE.Group(); rf.add(mesh(cyl(.32,.32,.04),mat.pcb));
+  rf.add(mesh(new THREE.BoxGeometry(.2,.05,.2),mat.cream,[0,.045,0]));
+  rf.add(mesh(new THREE.BoxGeometry(.12,.03,.08),mat.steel,[.17,.035,0]));
+  part(rf,1.36,2.2);
+  // 6 top cap + antenna + status LED
+  const cap=new THREE.Group(); cap.add(mesh(new THREE.SphereGeometry(.38,40,16,0,Math.PI*2,0,Math.PI/2),mat.dark));
+  cap.add(mesh(cyl(.035,.05,.75),mat.rubber,[.16,.55,0])); cap.add(mesh(new THREE.SphereGeometry(.045,16,12),mat.rubber,[.16,.93,0]));
+  const led=mesh(new THREE.SphereGeometry(.04,16,12),new THREE.MeshStandardMaterial({color:0x2bd46f,emissive:0x2bd46f,emissiveIntensity:1.4}),[-.15,.3,.15]);
+  cap.add(led); cap.userData.led=led;
+  part(cap,1.4,2.75);
+})();
+const NEW_TAGS = [
+  {n:1,y:.3,ey:.15,x:.42},{n:2,y:.42,ey:.75,x:.36},{n:3,y:.85,ey:1.5,x:.32},
+  {n:4,y:1.1,ey:1.1,x:.42},{n:5,y:1.36,ey:2.2,x:.36},{n:6,y:1.95,ey:3.3,x:.2}
+];
+
+/* ---------- OLD DEVICE: listening stick + ground mic ---------- */
+const OLD = new THREE.Group();
+(function(){
+  OLD.add(groundAndPipe(6));
+  // valve box at street level, stick resting on valve stem
+  OLD.add(mesh(cyl(.3,.3,.06),mat.iron,[ -1.1,.02,0]));
+  OLD.add(mesh(cyl(.06,.06,.7),mat.iron,[-1.1,-.3,0]));
+  // 1 listening stick (rod + earpiece + handle) tilted
+  const stick=new THREE.Group();
+  stick.add(mesh(cyl(.025,.025,2.2,16),mat.steel,[0,1.1,0]));
+  stick.add(mesh(cyl(.07,.07,.32,20),mat.rubber,[0,1.75,0]));
+  stick.add(mesh(cyl(.17,.06,.14,32),mat.cream,[0,2.25,0]));
+  stick.add(mesh(cyl(.17,.17,.02,32),mat.dark,[0,2.33,0]));
+  stick.position.set(-1.1,.05,0); stick.rotation.z = -.12; OLD.add(stick);
+  // 2 ground microphone (disc + handle) on road
+  const gm=new THREE.Group();
+  gm.add(mesh(cyl(.32,.36,.14),mat.cool,[0,.07,0]));
+  gm.add(mesh(cyl(.36,.36,.03),mat.rubber,[0,.0,0]));
+  gm.add(mesh(cyl(.035,.035,1.1,16),mat.steel,[0,.7,0]));
+  gm.add(mesh(new THREE.TorusGeometry(.14,.03,10,24,Math.PI),mat.rubber,[0,1.28,0]));
+  gm.position.set(.6,0,.2); OLD.add(gm);
+  // 3 amplifier box with dial + meter
+  const amp=new THREE.Group();
+  amp.add(mesh(new THREE.BoxGeometry(.7,.42,.3),mat.yellow));
+  amp.add(mesh(new THREE.BoxGeometry(.32,.18,.02),mat.glass,[-.12,.05,.16]));
+  amp.add(mesh(new THREE.BoxGeometry(.012,.14,.01),mat.dark,[-.12,.04,.17],[0,0,.4]));
+  amp.add(mesh(cyl(.06,.06,.05,20),mat.dark,[.2,.06,.17],[Math.PI/2,0,0]));
+  amp.add(mesh(cyl(.04,.04,.05,20),mat.dark,[.2,-.1,.17],[Math.PI/2,0,0]));
+  amp.add(mesh(new THREE.TorusGeometry(.18,.025,8,24,Math.PI),mat.rubber,[0,.26,0]));
+  amp.position.set(1.7,.22,.6); amp.rotation.y=-.5; OLD.add(amp);
+  // cable mic → amp
+  const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(.6,1.25,.2),new THREE.Vector3(1.0,.9,.5),new THREE.Vector3(1.3,.05,.7),new THREE.Vector3(1.55,.2,.62)]);
+  OLD.add(mesh(new THREE.TubeGeometry(curve,40,.015,8),mat.rubber));
+  // 4 headphones
+  const hp=new THREE.Group();
+  hp.add(mesh(new THREE.TorusGeometry(.22,.025,10,30,Math.PI),mat.dark,[0,.22,0]));
+  hp.add(mesh(cyl(.1,.1,.08,24),mat.dark,[-.22,.2,0],[0,0,Math.PI/2]));
+  hp.add(mesh(cyl(.1,.1,.08,24),mat.dark,[.22,.2,0],[0,0,Math.PI/2]));
+  hp.position.set(2.3,.0,-.3); hp.rotation.set(-.2,.6,0); OLD.add(hp);
+  const c2=new THREE.CatmullRomCurve3([new THREE.Vector3(1.95,.22,.45),new THREE.Vector3(2.2,.02,.2),new THREE.Vector3(2.3,.15,-.2)]);
+  OLD.add(mesh(new THREE.TubeGeometry(c2,30,.012,8),mat.rubber));
+})();
+const OLD_TAGS=[{n:1,p:[-1.36,2.45,0]},{n:2,p:[.6,1.5,.2]},{n:3,p:[1.7,.62,.6]},{n:4,p:[2.3,.55,-.3]}];
+
+scene.add(NEW); scene.add(OLD);
+
+/* ---------- side panel content ---------- */
+const SIDE = {
+ new:`<div><div class="kicker">เครื่องใหม่ · ติดตั้งถาวร</div><h2>LeakNode AI-IoT Sensor</h2></div>
+  <p class="note" style="margin:0">ทรงกระบอก Ø80 × 160 มม. กันน้ำ IP68 ติดด้วยแม่เหล็กบนวาล์วหรือหัวดับเพลิง</p>
+  <ol class="parts">
+   <li><span class="n">1</span><div><b>ฐานแม่เหล็ก + หัวเซนเซอร์ piezo</b><small>แนบกับโลหะของวาล์ว รับแรงสั่นสะเทือนจากน้ำที่รั่ว</small></div></li>
+   <li><span class="n">2</span><div><b>บอร์ดวัดสัญญาณ (ADC + ESP32-S3)</b><small>กรองช่วง 100–1500 Hz ทำ FFT และรันโมเดล TinyML บนเครื่อง</small></div></li>
+   <li><span class="n">3</span><div><b>แบตเตอรี่ลิเทียม 2 ก้อน</b><small>ตื่นมาฟังแค่ช่วงกลางคืน จึงใช้งานได้นานหลายปี</small></div></li>
+   <li><span class="n">4</span><div><b>ตัวเรือนกันน้ำ IP68</b><small>สีส้มให้เห็นชัดตอนเปิดฝาบ่อวาล์ว</small></div></li>
+   <li><span class="n">5</span><div><b>โมดูล GNSS + LoRaWAN/NB-IoT</b><small>ใช้ GPS ซิงก์เวลาระหว่างเซนเซอร์ เพื่อคำนวณตำแหน่งรั่วได้แม่น</small></div></li>
+   <li><span class="n">6</span><div><b>ฝาบน + เสาอากาศ + ไฟสถานะ</b><small>ไฟเขียว = ปกติ ส่งข้อมูลขึ้นคลาวด์ทุกเช้า</small></div></li>
+  </ol>`,
+ old:`<div class="old"><div class="kicker">เครื่องเก่า · ช่างพกเดินสำรวจ</div><h2>ชุดฟังเสียงแบบดั้งเดิม</h2></div>
+  <p class="note" style="margin:0">ต้องมีช่างไปที่หน้างาน แล้วตัดสินจากเสียงที่ได้ยินผ่านหูฟัง</p>
+  <ol class="parts old">
+   <li><span class="n">1</span><div><b>ไม้ฟังเสียง (listening stick)</b><small>แท่งโลหะแตะวาล์ว แล้วแนบหูที่ปลายด้านบน</small></div></li>
+   <li><span class="n">2</span><div><b>ไมโครโฟนพื้น (ground mic)</b><small>วางบนผิวถนนทีละจุด ขยับไปเรื่อยๆ เพื่อหาจุดที่เสียงดังที่สุด</small></div></li>
+   <li><span class="n">3</span><div><b>กล่องขยายเสียง</b><small>ปรับความดังและฟิลเตอร์ มีเข็มแสดงระดับเสียง</small></div></li>
+   <li><span class="n">4</span><div><b>หูฟังครอบหู</b><small>ช่างฟังเองและตัดสินจากประสบการณ์</small></div></li>
+  </ol>`
+};
+const side=document.getElementById('side');
+
+/* ---------- tags ---------- */
+const tagBox=document.getElementById('tags');
+function makeTags(){
+  tagBox.innerHTML='';
+  const list=[];
+  if(NEW.visible) NEW_TAGS.forEach(t=>list.push({k:'new',t}));
+  if(OLD.visible) OLD_TAGS.forEach(t=>list.push({k:'old',t}));
+  list.forEach(o=>{const d=document.createElement('div');d.className='tag';d.dataset.k=o.k;d.textContent=o.t.n;tagBox.appendChild(d);o.el=d});
+  return list;
+}
+let tagList=[];
+const v=new THREE.Vector3();
+
+/* ---------- modes ---------- */
+let mode='new', explode=0, explodeTarget=0;
+const btns={new:t('t-new'),old:t('t-old'),both:t('t-both')}; function t(id){return document.getElementById(id)}
+const exBtn=t('explode');
+function setMode(m){
+  mode=m;
+  for(const k in btns) btns[k].setAttribute('aria-pressed',k===m);
+  NEW.visible = m!=='old'; OLD.visible = m!=='new';
+  NEW.position.x = m==='both'? -2.4:0; OLD.position.x = m==='both'? 2.6:0;
+  side.innerHTML = m==='old'? SIDE.old : m==='new'? SIDE.new : SIDE.new + '<hr style="border:0;border-top:1px solid var(--line);width:100%">' + SIDE.old;
+  exBtn.hidden = m==='old';
+  controls.target.set(0, m==='old'?1:1.1, 0);
+  camera.position.set(m==='both'?7:5.2, m==='both'?4.4:3.4, m==='both'?9:6.2);
+  tagList=makeTags();
+}
+btns.new.onclick=()=>setMode('new'); btns.old.onclick=()=>setMode('old'); btns.both.onclick=()=>setMode('both');
+exBtn.onclick=()=>{explodeTarget=explodeTarget?0:1;exBtn.textContent=explodeTarget?'ประกอบกลับ':'ถอดชิ้นส่วน'};
+const spinBtn=t('spin');
+spinBtn.onclick=()=>{controls.autoRotate=!controls.autoRotate;spinBtn.textContent=controls.autoRotate?'หยุดหมุน':'หมุนอัตโนมัติ'};
+if(matchMedia('(prefers-reduced-motion: reduce)').matches){controls.autoRotate=false;spinBtn.textContent='หมุนอัตโนมัติ'}
+
+/* ---------- loop ---------- */
+function resize(){
+  const r=canvas.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas.parentElement);
+const clock=new THREE.Clock();
+function loop(){
+  const dt=Math.min(clock.getDelta(),.05);
+  explode += (explodeTarget-explode)*Math.min(1,dt*5);
+  parts.forEach(p=>p.obj.position.y = p.base + (p.exp-p.base)*explode);
+  const led=parts[5].obj.userData.led; led.material.emissiveIntensity = .8+Math.sin(clock.elapsedTime*3)*.6;
+  controls.update(); renderer.render(scene,camera);
+  const r=canvas.getBoundingClientRect();
+  tagList.forEach(o=>{
+    if(o.k==='new'){const tt=o.t;v.set(tt.x+NEW.position.x, tt.y+(tt.ey-tt.y)*explode, .2);}
+    else v.set(o.t.p[0]+OLD.position.x,o.t.p[1],o.t.p[2]);
+    v.project(camera);
+    o.el.style.left=((v.x+1)/2*r.width)+'px'; o.el.style.top=((1-v.y)/2*r.height)+'px';
+    o.el.hidden = v.z>1;
+  });
+  requestAnimationFrame(loop);
+}
+setMode('new'); resize(); loop();
+})();
+</script>
+
+</body></html>
