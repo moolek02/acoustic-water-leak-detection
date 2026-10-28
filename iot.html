@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI-IoT Acoustic Leak Detection: เครื่องจำลอง</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --leak:#f97316; --ok:#22c55e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:20px 24px 8px; }
+  h1 { margin:0 0 4px; font-size:22px; }
+  header p { margin:0; color:var(--muted); font-size:14px; }
+  nav { padding:0 24px 12px; font-size:13px; }
+  nav a { color:var(--accent); margin-right:14px; }
+  main { display:grid; grid-template-columns: 300px 1fr; gap:16px; padding:8px 24px 24px; }
+  @media (max-width: 860px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border-radius:12px; padding:16px; }
+  label { display:block; font-size:13px; color:var(--muted); margin-top:14px; }
+  label span.v { float:right; color:var(--ink); font-variant-numeric: tabular-nums; }
+  input[type=range] { width:100%; margin-top:6px; }
+  .check { display:flex; align-items:center; gap:8px; margin-top:14px; font-size:14px; }
+  button { margin-top:16px; width:100%; padding:10px; border:0; border-radius:8px; background:var(--accent); color:#0f172a; font-weight:600; cursor:pointer; }
+  button:hover { filter:brightness(1.1); }
+  h2 { font-size:15px; margin:0 0 10px; color:var(--muted); font-weight:600; }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  @media (max-width: 600px) { .grid2 { grid-template-columns:1fr; } }
+  .card { background:#0f172a; border-radius:10px; padding:12px; }
+  .stat small { display:block; color:var(--muted); font-size:12px; }
+  .stat b { font-size:18px; font-variant-numeric: tabular-nums; }
+  .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-weight:700; font-size:14px; }
+  .badge.leak { background:var(--leak); color:#0f172a; }
+  .badge.ok { background:var(--ok); color:#0f172a; }
+  .bar { height:10px; background:#334155; border-radius:6px; overflow:hidden; margin-top:6px; }
+  .bar > div { height:100%; background:linear-gradient(90deg,var(--ok),var(--leak)); width:0%; transition:width .3s; }
+  pre { background:#0b1222; border-radius:8px; padding:10px; font-size:12px; overflow:auto; max-height:220px; margin:0; color:#cbd5e1; }
+  .note { font-size:12px; color:var(--muted); margin-top:12px; line-height:1.5; }
+  .status { font-size:13px; color:var(--muted); margin-bottom:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AI-IoT Acoustic Leak Detection: เครื่องจำลอง</h1>
+  <p>เซนเซอร์เสียงจำลอง 2 ตัวที่ปลายท่อใต้ดิน ส่ง telemetry ให้ gateway วิเคราะห์ด้วยโมเดล logistic regression</p>
+</header>
+<nav>
+  <a href="./index.html">ซิมูเลชัน TDOA (เดิม)</a>
+  <a href="./docs/acoustic-leak-detection.md">เอกสารหลักการ</a>
+</nav>
+
+<main>
+  <section class="panel">
+    <div class="status" id="status">กำลังเทรนโมเดล…</div>
+    <label>ความยาวท่อ L (m) <span class="v" id="vL"></span>
+      <input type="range" id="L" min="100" max="400" step="10" value="250"></label>
+    <label>ตำแหน่งรั่วจากเซนเซอร์ A, x (m) <span class="v" id="vX"></span>
+      <input type="range" id="X" min="0" max="400" step="1" value="90"></label>
+    <label>ระดับสัญญาณรบกวน (noise) <span class="v" id="vN"></span>
+      <input type="range" id="N" min="0" max="1.5" step="0.05" value="0.4"></label>
+    <label class="check"><input type="checkbox" id="leakOn" checked> มีการรั่วจริง</label>
+    <button id="run">ส่งรอบข้อมูลใหม่</button>
+    <button id="rand" style="background:#64748b;color:#e2e8f0">สุ่มตำแหน่งรั่ว</button>
+    <p class="note">
+      โมเดลถูกเทรนจากข้อมูลจำลองที่มีป้ายกำกับ (มีรั่ว/ไม่รั่ว) ใช้ฟีเจอร์ 4 ตัว ได้แก่
+      ค่า peak cross-correlation, สัดส่วนความถี่สูง, log ของ RMS และความไม่สมดุลของ RMS
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2>อุปกรณ์ IoT (telemetry)</h2>
+    <div class="grid2">
+      <div class="card" id="nodeA"></div>
+      <div class="card" id="nodeB"></div>
+    </div>
+
+    <h2 style="margin-top:16px">ผลการวิเคราะห์ของ AI</h2>
+    <div class="grid2">
+      <div class="card">
+        <div id="badge"></div>
+        <div class="bar"><div id="probBar"></div></div>
+        <p class="note" id="probText"></p>
+      </div>
+      <div class="card">
+        <div class="stat"><small>ตำแหน่งจริง</small><b id="rTrue">-</b></div>
+        <div class="stat" style="margin-top:8px"><small>ตำแหน่งที่ AI ประมาณ</small><b id="rEst">-</b></div>
+        <div class="stat" style="margin-top:8px"><small>ความคลาดเคลื่อน</small><b id="rErr">-</b></div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:16px">บันทึกเหตุการณ์ (alert log, JSON)</h2>
+    <pre id="log">-</pre>
+  </section>
+</main>
+
+<script type="module">
+  import { makeRng, simulateWindow } from "./src/signal.js";
+  import { CONFIG, trainDetector, analyzeWindow } from "./src/gateway.js";
+  import { createPair } from "./src/device.js";
+
+  const $ = id => document.getElementById(id);
+  let detector = null;
+  let runCount = 0;
+  const events = [];
+
+  function updateLabels() {
+    $("X").max = $("L").value;
+    if (+$("X").value > +$("L").value) $("X").value = $("L").value;
+    $("vL").textContent = $("L").value + " m";
+    $("vX").textContent = $("X").value + " m";
+    $("vN").textContent = (+$("N").value).toFixed(2);
+  }
+
+  function renderNode(el, telemetry) {
+    el.innerHTML = `<h2>${telemetry.deviceId}</h2><pre>${JSON.stringify(telemetry, null, 2)}</pre>`;
+  }
+
+  function runCycle() {
+    if (!detector) return;
+    runCount += 1;
+    const L = +$("L").value;
+    const leakX = +$("X").value;
+    const noise = +$("N").value;
+    const leak = $("leakOn").checked;
+    const rng = makeRng(1000 + runCount);
+
+    // จำลองการรั่วและการส่งข้อมูลจากอุปกรณ์
+    const { sA, sB } = simulateWindow({ rng, fs: CONFIG.fs, L, leakX, c: CONFIG.c, noise, leak, windowS: CONFIG.windowS });
+    const [nodeA, nodeB] = createPair(L);
+    const tA = nodeA.telemetry(sA, { fs: CONFIG.fs });
+    const tB = nodeB.telemetry(sB, { fs: CONFIG.fs });
+    renderNode($("nodeA"), tA);
+    renderNode($("nodeB"), tB);
+
+    // gateway วิเคราะห์
+    const r = analyzeWindow(detector.model, { sA, sB }, { L });
+    const p = r.leakProb;
+
+    $("badge").innerHTML = r.alarm
+      ? '<span class="badge leak">ALARM: ตรวจพบการรั่ว</span>'
+      : '<span class="badge ok">ปกติ</span>';
+    $("probBar").style.width = (p * 100).toFixed(1) + "%";
+    $("probText").textContent = `ความน่าจะเป็นว่ามีการรั่ว ${(p * 100).toFixed(1)}% (threshold 50%)`;
+
+    $("rTrue").textContent = leak ? leakX.toFixed(1) + " m" : "ไม่มี";
+    $("rEst").textContent = r.xEst === null ? "-" : r.xEst.toFixed(1) + " m";
+    $("rErr").textContent = (leak && r.xEst !== null) ? Math.abs(r.xEst - leakX).toFixed(2) + " m" : "-";
+
+    const event = {
+      cycle: runCount,
+      timestamp: tA.timestamp,
+      leakProbability: Number(p.toFixed(3)),
+      alarm: r.alarm,
+      estimated_m: r.xEst === null ? null : Number(r.xEst.toFixed(2)),
+      lag_samples: r.lag,
+      groundTruth: leak ? "leak" : "normal",
+    };
+    events.unshift(event);
+    events.splice(10);
+    $("log").textContent = events.map(e => JSON.stringify(e)).join("\n");
+  }
+
+  $("L").addEventListener("input", () => { updateLabels(); runCycle(); });
+  $("X").addEventListener("input", () => { updateLabels(); runCycle(); });
+  $("N").addEventListener("input", () => { updateLabels(); runCycle(); });
+  $("leakOn").addEventListener("change", runCycle);
+  $("run").addEventListener("click", runCycle);
+  $("rand").addEventListener("click", () => {
+    const L = +$("L").value;
+    $("X").value = Math.round(L * (0.05 + Math.random() * 0.9));
+    updateLabels(); runCycle();
+  });
+
+  updateLabels();
+  // เทรนโมเดลก่อนแล้วจึงแสดงผล
+  setTimeout(() => {
+    const t0 = performance.now();
+    detector = trainDetector();
+    const sec = ((performance.now() - t0) / 1000).toFixed(1);
+    $("status").textContent = `โมเดลพร้อม · ความแม่นยำบนชุดทดสอบ ${(detector.testAccuracy * 100).toFixed(1)}% · เทรนใน ${sec} s`;
+    runCycle();
+  }, 50);
+</script>
+</body>
+</html>

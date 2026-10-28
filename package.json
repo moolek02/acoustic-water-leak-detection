@@ -1,0 +1,10 @@
+{
+  "name": "acoustic-water-leak-detection",
+  "version": "0.2.0",
+  "description": "AI-IoT simulator for acoustic water leak detection in underground pipes",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/test.mjs"
+  },
+  "license": "MIT"
+}
