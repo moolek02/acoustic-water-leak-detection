@@ -55,7 +55,7 @@
 <body>
 <header>
   <h1>Device Operation Simulation: การทำงานของอุปกรณ์ทีละขั้น</h1>
-  <p>แสดงลำดับการทำงานของเครื่องแต่ละแบบ ทั้งเครื่อง LeakNode (AI-IoT), วิธีเดิมของช่าง และ DS-300 (ตรวจทุเรียน) เป็นตัวอย่างอุปกรณ์ IoT อีกตัว</p>
+  <p>แสดงลำดับการทำงานของเครื่องแต่ละแบบ ทั้งเครื่อง LeakNode (AI-IoT), วิธีเดิมของช่าง และวิธีเดิมของช่าง</p>
 </header>
 <nav>
   <a href="./iot.html">เครื่องจำลอง AI-IoT (เดิม)</a>
@@ -66,7 +66,6 @@
 <div class="tabs" role="group" aria-label="เลือกอุปกรณ์">
   <button id="p-leak" aria-pressed="true">LeakNode (AI-IoT)</button>
   <button id="p-old" aria-pressed="false">วิธีเดิม (ช่างเดินสำรวจ)</button>
-  <button id="p-durian" aria-pressed="false">DS-300 ทุเรียน (ตัวอย่าง)</button>
 </div>
 
 <main>
@@ -159,19 +158,7 @@
         { s: 60,  st: "จดบันทึก",       text: "จดตำแหน่งลงกระดาษหรือบันทึกมือ ไม่มีข้อมูลย้อนหลัง" }
       ]
     },
-    durian: {
-      title: "DS-300 ตรวจทุเรียน (อุปกรณ์ IoT ตัวอย่าง)",
-      desc: "ตัวอย่างอุปกรณ์ IoT อีกตัวในโครงการเดียวกัน ใช้ ESP32-S3 + ADS1115 อ่านเซนเซอร์แก๊ส TGS2602/TGS2603 และ BME688 แล้วให้ผลเป็นเกรด ค่าที่แสดงเป็นค่าจำลองเพื่อประกอบการอธิบาย",
-      battery: null,
-      steps: [
-        { s: 10, st: "เปิดเครื่อง",    text: "เปิด ESP32-S3 และรอให้เซนเซอร์แก๊สอุ่นเครื่อง" },
-        { s: 5,  st: "ดูดอากาศ",       text: "ปั๊ม 5V ดูดอากาศจากห้องตรวจเข้าสู่ห้องเซนเซอร์" },
-        { s: 8,  st: "อ่านแก๊ส",       text: "ADS1115 อ่านค่า TGS2602/TGS2603 และ BME688 (อุณหภูมิ/ความชื้น)", gas: true },
-        { s: 4,  st: "คำนวณเกรด",      text: "ประมวลผลค่าแก๊สเป็นเกรดความสุก (ค่าจำลอง)", grade: true },
-        { s: 3,  st: "แสดงผล",         text: "แสดงเกรดบนหน้าจอและส่งผลขึ้นคลาวด์" },
-        { s: 5,  st: "ล้างห้อง",       text: "ปั๊มอากาศสะอาดเข้าเพื่อล้างห้องเซนเซอร์ก่อนรอบถัดไป" }
-      ]
-    }
+
   };
 
   // ---------- การแสดงผล ----------
@@ -257,13 +244,6 @@
         if (st.send) log(JSON.stringify({ deviceId: "NODE-A", telemetry: result.tA, nodeB: result.tB.seq }));
       }
 
-      if (profile === "durian") {
-        if (st.gas) {
-          const v = [1.2 + Math.random() * 0.8, 0.9 + Math.random() * 0.6, 55 + Math.random() * 10];
-          log(`[ADS1115] TGS2602=${v[0].toFixed(2)} V  TGS2603=${v[1].toFixed(2)} V  BME688 RH=${v[2].toFixed(1)}% (ค่าจำลอง)`);
-        }
-        if (st.grade) log(`[FlyHash] ผลประมวลผลเกรด: ระดับ ${["A", "B", "C"][runs % 3]} (ค่าจำลอง ไม่ใช่ผลวิจัยจริง)`);
-      }
 
       if (profile === "old") log(`[ช่าง] ${st.st}: ${st.text}`);
 
@@ -287,9 +267,6 @@
     } else if (profile === "old") {
       setState("จบการสำรวจ", "idle");
       $("status").textContent = "วิธีเดิมต้องใช้เวลาหลายสิบนาทีต่อเขตและผลขึ้นกับคนทำ";
-    } else {
-      setState("แสดงเกรดแล้ว", "ok");
-      $("status").textContent = "DS-300 ค่าทั้งหมดในหน้านี้เป็นค่าจำลองเพื่ออธิบายการทำงาน";
     }
   }
 
@@ -297,7 +274,7 @@
   function setProfile(p) {
     stopTimer();
     profile = p;
-    for (const k of ["leak", "old", "durian"]) $("p-" + k).setAttribute("aria-pressed", k === p);
+    for (const k of ["leak", "old"]) $("p-" + k).setAttribute("aria-pressed", k === p);
     $("log").textContent = "-";
     $("go").disabled = false;
     $("prob").textContent = "-"; $("probBar").style.width = "0%"; $("xest").textContent = "-";
@@ -307,7 +284,6 @@
 
   $("p-leak").onclick = () => setProfile("leak");
   $("p-old").onclick = () => setProfile("old");
-  $("p-durian").onclick = () => setProfile("durian");
   $("go").onclick = runCycle;
   $("reset").onclick = () => {
     stopTimer(); battery = 100; runs = 0;
