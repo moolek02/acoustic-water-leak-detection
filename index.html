@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acoustic Water Leak Detection - Simulation</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --leak:#f97316; --ok:#22c55e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:20px 24px 8px; }
+  h1 { margin:0 0 4px; font-size:22px; }
+  header p { margin:0; color:var(--muted); font-size:14px; }
+  main { display:grid; grid-template-columns: 300px 1fr; gap:16px; padding:16px 24px 24px; }
+  @media (max-width: 860px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border-radius:12px; padding:16px; }
+  label { display:block; font-size:13px; color:var(--muted); margin-top:14px; }
+  label span.v { float:right; color:var(--ink); font-variant-numeric: tabular-nums; }
+  input[type=range] { width:100%; margin-top:6px; }
+  button { margin-top:18px; width:100%; padding:10px; border:0; border-radius:8px; background:var(--accent); color:#0f172a; font-weight:600; cursor:pointer; }
+  button:hover { filter:brightness(1.1); }
+  .results { display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:16px; }
+  .stat { background:#0f172a; border-radius:8px; padding:10px; }
+  .stat small { display:block; color:var(--muted); font-size:12px; }
+  .stat b { font-size:18px; font-variant-numeric: tabular-nums; }
+  canvas { width:100%; display:block; background:#0b1222; border-radius:8px; }
+  h2 { font-size:15px; margin:18px 0 8px; color:var(--muted); font-weight:600; }
+  .note { font-size:12px; color:var(--muted); margin-top:12px; line-height:1.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Acoustic Water Leak Detection: จำลองการหาตำแหน่งท่อรั่ว</h1>
+  <p>เซนเซอร์สองตัวที่ปลายท่อฟังเสียงรั่ว แล้วใช้ cross-correlation หาความต่างเวลาการมาถึง (TDOA) เพื่อคำนวณตำแหน่งรั่ว</p>
+</header>
+
+<main>
+  <section class="panel">
+    <label>ความยาวท่อ L (m) <span class="v" id="vL"></span>
+      <input type="range" id="L" min="50" max="1000" step="10" value="300"></label>
+    <label>ตำแหน่งรั่วจากเซนเซอร์ A, x (m) <span class="v" id="vX"></span>
+      <input type="range" id="X" min="0" max="1000" step="1" value="120"></label>
+    <label>ความเร็วเสียงในท่อ c (m/s) <span class="v" id="vC"></span>
+      <input type="range" id="C" min="300" max="1500" step="10" value="1200"></label>
+    <label>อัตราสุ่มตัวอย่าง fs (Hz) <span class="v" id="vFs"></span>
+      <input type="range" id="Fs" min="500" max="20000" step="100" value="10000"></label>
+    <label>ระดับสัญญาณรบกวน (noise) <span class="v" id="vN"></span>
+      <input type="range" id="N" min="0" max="2" step="0.05" value="0.5"></label>
+    <button id="run">สุ่มเหตุการณ์รั่วใหม่</button>
+
+    <div class="results">
+      <div class="stat"><small>ตำแหน่งจริง</small><b id="rTrue">-</b></div>
+      <div class="stat"><small>ตำแหน่งที่คำนวณได้</small><b id="rEst">-</b></div>
+      <div class="stat"><small>ความต่างเวลา Δt (ms)</small><b id="rDt">-</b></div>
+      <div class="stat"><small>ความคลาดเคลื่อน (m)</small><b id="rErr">-</b></div>
+      <div class="stat"><small>ความละเอียดทางทฤษฎี c/(2fs) (m)</small><b id="rRes">-</b></div>
+      <div class="stat"><small>Peak correlation</small><b id="rPeak">-</b></div>
+    </div>
+    <p class="note">
+      สูตร: อัตราส่วนเวลามาถึง t<sub>A</sub> = x/c, t<sub>B</sub> = (L−x)/c
+      ดังนั้น Δt = t<sub>B</sub> − t<sub>A</sub> = (L−2x)/c และ x = (L − c·Δt)/2
+      <br>ความละเอียดเกิดจาก lag เป็นจำนวนเต็มของตัวอย่าง จึงมีขั้นละ 1/fs วินาที
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2>ภาพท่อและตำแหน่งรั่ว</h2>
+    <canvas id="pipe" width="900" height="120"></canvas>
+    <h2>สัญญาณที่เซนเซอร์ A และ B (ขยายช่วงสั้น)</h2>
+    <canvas id="signals" width="900" height="200"></canvas>
+    <h2>Cross-correlation R(k) และ lag ที่พีคสูงสุด</h2>
+    <canvas id="xcorr" width="900" height="200"></canvas>
+  </section>
+</main>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const inputs = ["L", "X", "C", "Fs", "N"];
+  const pipe = $("pipe"), sig = $("signals"), xc = $("xcorr");
+  let state = null;
+
+  // จำนวนตัวอย่างที่ใช้บันทึก (ประมาณ 0.4 วินาที)
+  const WINDOW_S = 0.4;
+
+  function randn() {
+    // Box-Muller
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  // สร้างเสียงรั่ว: white noise ผ่าน one-pole low-pass แล้วคูณด้วย envelope แบบ decay
+  function makeLeakSound(fs, n) {
+    const out = new Float32Array(n);
+    const a = 0.85; // ค่าสัมประสิทธิ์ low-pass (ความถี่ตัดต่ำ)
+    let y = 0;
+    const burst = Math.floor(0.12 * fs);
+    for (let i = 0; i < n; i++) {
+      y = a * y + (1 - a) * randn();
+      const env = i < burst ? 1 : Math.exp(-(i - burst) / (0.03 * fs));
+      out[i] = y * env * 10;
+    }
+    return out;
+  }
+
+  function simulate() {
+    const L = +$("L").value, x = +$("X").value, c = +$("C").value;
+    const fs = +$("Fs").value, noise = +$("N").value;
+    const xT = Math.min(x, L);
+
+    const n = Math.floor(WINDOW_S * fs);
+    const src = makeLeakSound(fs, n + Math.ceil(L / c * fs) + 10);
+
+    // ความล่าช้าเป็นจำนวนตัวอย่าง (ปัดเป็นจำนวนเต็ม)
+    const dA = Math.round(xT / c * fs);
+    const dB = Math.round((L - xT) / c * fs);
+
+    const sA = new Float32Array(n), sB = new Float32Array(n);
+    // เสียงมาถึงเซนเซอร์หลังจากผ่านไป d ตัวอย่าง ก่อนหน้านั้นเป็นศูนย์
+    for (let i = 0; i < n; i++) {
+      sA[i] = i >= dA ? src[i - dA] : 0;
+      sB[i] = i >= dB ? src[i - dB] : 0;
+    }
+    for (let i = 0; i < n; i++) {
+      sA[i] += noise * randn();
+      sB[i] += noise * randn();
+    }
+
+    // Cross-correlation R(k) = sum_n sA[n] * sB[n + k]
+    const maxLag = Math.min(n - 1, Math.ceil(L / c * fs) + 2);
+    const R = new Float32Array(2 * maxLag + 1);
+    let bestK = 0, bestR = -Infinity, norm = 0;
+    // normalize ด้วยพลังงานของสองสัญญาณ ทำให้พีคอยู่ในช่วง -1 ถึง 1
+    let eA = 0, eB = 0;
+    for (let i = 0; i < n; i++) { eA += sA[i] * sA[i]; eB += sB[i] * sB[i]; }
+    norm = Math.sqrt(eA * eB) || 1;
+    for (let k = -maxLag; k <= maxLag; k++) {
+      let s = 0;
+      const i0 = Math.max(0, -k), i1 = Math.min(n, n - k);
+      for (let i = i0; i < i1; i++) s += sA[i] * sB[i + k];
+      s /= norm;
+      R[k + maxLag] = s;
+      if (s > bestR) { bestR = s; bestK = k; }
+    }
+
+    const dt = bestK / fs;                 // วินาที
+    const xEst = (L - c * dt) / 2;         // ตำแหน่งที่คำนวณได้
+    state = { L, xT, c, fs, noise, sA, sB, R, maxLag, bestK, bestR, dt, xEst };
+    draw();
+  }
+
+  function fmt(v, d = 2) { return Number.isFinite(v) ? v.toFixed(d) : "-"; }
+
+  function drawPipe() {
+    const { L, xT, xEst } = state;
+    const ctx = pipe.getContext("2d"), W = pipe.width, H = pipe.height;
+    ctx.clearRect(0, 0, W, H);
+    const pad = 50, y = 60;
+    const px = m => pad + (m / L) * (W - 2 * pad);
+
+    ctx.strokeStyle = "#475569"; ctx.lineWidth = 14; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
+
+    // เซนเซอร์ A และ B
+    [[0, "A"], [L, "B"]].forEach(([m, name]) => {
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath(); ctx.arc(px(m), y, 9, 0, 2 * Math.PI); ctx.fill();
+      ctx.fillStyle = "#e2e8f0"; ctx.font = "13px system-ui";
+      ctx.textAlign = "center"; ctx.fillText("เซนเซอร์ " + name, px(m), y - 22);
+    });
+
+    // จุดรั่วจริง
+    ctx.fillStyle = "#f97316";
+    ctx.beginPath(); ctx.arc(px(xT), y, 7, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillText("รั่วจริง " + xT.toFixed(0) + " m", px(xT), y + 34);
+
+    // จุดที่คำนวณได้
+    if (Number.isFinite(xEst)) {
+      ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(px(xEst), y - 30); ctx.lineTo(px(xEst), y + 30); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#22c55e";
+      ctx.fillText("คำนวณได้ " + xEst.toFixed(1) + " m", px(xEst), y - 40);
+    }
+  }
+
+  function drawSignals() {
+    const { sA, sB, fs } = state;
+    const ctx = sig.getContext("2d"), W = sig.width, H = sig.height;
+    ctx.clearRect(0, 0, W, H);
+    const show = Math.min(sA.length, Math.floor(0.12 * fs));
+    const mid1 = H / 4, mid2 = (3 * H) / 4, amp = H / 5;
+    const scale = 1 / (1e-9 + Math.max(...sA.slice(0, show).map(Math.abs), ...sB.slice(0, show).map(Math.abs)));
+    function trace(arr, mid, color) {
+      ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.beginPath();
+      for (let i = 0; i < show; i++) {
+        const px = (i / show) * W, py = mid - arr[i] * scale * amp;
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+    }
+    trace(sA, mid1, "#38bdf8");
+    trace(sB, mid2, "#f97316");
+    ctx.fillStyle = "#94a3b8"; ctx.font = "12px system-ui";
+    ctx.fillText("A", 8, 16); ctx.fillText("B", 8, H / 2 + 16);
+    ctx.fillStyle = "#64748b";
+    ctx.fillText("0 – 120 ms", W - 80, H - 6);
+  }
+
+  function drawXcorr() {
+    const { R, maxLag, bestK, bestR, fs } = state;
+    const ctx = xc.getContext("2d"), W = xc.width, H = xc.height;
+    ctx.clearRect(0, 0, W, H);
+    const pad = 30;
+    let mx = -Infinity, mn = Infinity;
+    for (const v of R) { if (v > mx) mx = v; if (v < mn) mn = v; }
+    const range = mx - mn || 1;
+    const py = v => H - pad - ((v - mn) / range) * (H - 2 * pad);
+    const px = k => pad + ((k + maxLag) / (2 * maxLag)) * (W - 2 * pad);
+
+    ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let k = -maxLag; k <= maxLag; k++) {
+      const X = px(k), Y = py(R[k + maxLag]);
+      k === -maxLag ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = "#22c55e"; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(px(bestK), pad); ctx.lineTo(px(bestK), H - pad); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#e2e8f0"; ctx.font = "12px system-ui";
+    ctx.fillText("lag = " + bestK + " ตัวอย่าง (" + (bestK / fs * 1000).toFixed(2) + " ms)", px(bestK) + 6, pad + 4);
+    ctx.fillStyle = "#64748b";
+    ctx.fillText("-lag", 6, H - 8); ctx.fillText("+lag", W - 34, H - 8);
+  }
+
+  function draw() {
+    const s = state;
+    drawPipe(); drawSignals(); drawXcorr();
+    $("rTrue").textContent = fmt(s.xT, 1) + " m";
+    $("rEst").textContent = fmt(s.xEst, 1) + " m";
+    $("rDt").textContent = fmt(s.dt * 1000, 2);
+    $("rErr").textContent = fmt(Math.abs(s.xEst - s.xT), 2);
+    $("rRes").textContent = fmt(s.c / (2 * s.fs), 3);
+    $("rPeak").textContent = fmt(s.bestR, 2);
+  }
+
+  function updateLabels() {
+    $("vL").textContent = $("L").value + " m";
+    $("vX").textContent = $("X").value + " m";
+    $("vC").textContent = $("C").value + " m/s";
+    $("vFs").textContent = $("Fs").value + " Hz";
+    $("vN").textContent = (+$("N").value).toFixed(2);
+    // จำกัดตำแหน่งรั่วไม่ให้เกินความยาวท่อ
+    $("X").max = $("L").value;
+    if (+$("X").value > +$("L").value) $("X").value = $("L").value;
+  }
+
+  inputs.forEach(id => $(id).addEventListener("input", () => { updateLabels(); simulate(); }));
+  $("run").addEventListener("click", () => {
+    // สุ่มตำแหน่งรั่วใหม่ในช่วง 5%–95% ของความยาวท่อ
+    const L = +$("L").value;
+    $("X").value = Math.round(L * (0.05 + Math.random() * 0.9));
+    updateLabels(); simulate();
+  });
+
+  updateLabels();
+  simulate();
+})();
+</script>
+</body>
+</html>
